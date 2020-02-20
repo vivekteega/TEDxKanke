@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+    <head>
+        <title>TEDxKanke Monitor</title>
+        <script id="floGlobals">
+            /* Constants for FLO blockchain operations !!Make sure to add this at begining!! */
+            const floGlobals = {
+              adminID: "FTMnSh1m99GSDAuxGyevs375BLudffso9F",
+              subAdmins: [],
+              application: "TEDxKanke",
+              webAppURL: "ranchimall.duckdns.org:3874"
+            }
+        </script>
+        <script id="onLoadStartUp">
+            function onLoadStartUp() {
+                console.log('onLoadStartUp')
+                TEDxKanke_monitor.getProjectList().then(result => {
+                    projects = result;
+                    TEDxKanke_monitor.getTaskList().then(result => {
+                        tasks = TEDxKanke_monitor.taskTitles(result);
+                    }).catch(error => console.error(error))
+                }).catch(error => console.error(error))
+            }
+        </script>
+    </head>
+    <body onload="onLoadStartUp()">
+        <script id="TEDxKanke_monitor">
+            
+            const TEDxKanke_monitor = {
+                
+                taskCodes: function(taskList, taskTitle){
+                    var result = []
+                    for(taskCode in taskList)
+                        if(taskList[taskCode].taskTitle === taskTitle)
+                            result.push(taskCode)
+                    return result
+                },
+
+                taskTitles: function(taskList) {
+                    var result = {}
+                    for(taskCode in taskList){
+                        var taskTitle = taskList[taskCode].taskTitle
+                        if(taskTitle in result)
+                            result[taskTitle].push(taskCode)
+                        else
+                            result[taskTitle] = [taskCode]
+                    }
+                    return result
+                },
+
+                getGeneralUpdate: function(type, vectorClock = '0'){
+                    return new Promise((resolve, reject) => {
+                        floWebappClient.requestGeneralData(type, vectorClock)
+                            .then(results => resolve(results))
+                            .catch(error => reject(error))
+                    })
+                },
+
+                getProjectList: function(){
+                    return new Promise((resolve, reject) => {
+                        floWebappClient.requestObjectData(["TEDxKanke", "projectDetails"])
+                            .then(results => resolve(results))
+                            .catch(error => reject(error))
+                    })
+                }, 
+
+                getTaskList: function(){
+                    return new Promise((resolve, reject) => {
+                        floWebappClient.requestObjectData(["TEDxKanke", "projectTaskDetails"])
+                            .then(results => resolve(results))
+                            .catch(error => reject(error))
+                    })
+                }, 
+
+                getAssignedInterns(taskCode){
+                    return new Promise((resolve, reject) => {
+                        floWebappClient.requestObjectData(["TEDxKanke", "internsAssigned", taskCode])
+                            .then(results => resolve(results))
+                            .catch(error => reject(error))
+                    })
+                }, 
+
+                getInternDetails(floID){
+                    return new Promise((resolve, reject) => {
+                        floWebappClient.requestObjectData(["TEDxKanke", "internList", floID])
+                            .then(results => resolve(results))
+                            .catch(error => reject(error))
+                    })
+                }, 
+                
+            }
+        </script>
+        <script id="floWebappClient">
+            const floWebappClient = {
+                util:{
+                    sendData(data) {
+                        return new Promise((resolve, reject) => {
+                            var websocket = new WebSocket("ws://" + floGlobals.webAppURL + "/ws");
+                            websocket.onmessage = (evt => {
+                                if (evt.data == '$+') {
+                                    websocket.send(data);
+                                    resolve(`Data sent to webApp`);
+                                } else if (evt.data == '$-')
+                                    reject(`webApp not available`)
+                                else
+                                    reject(evt.data)
+                                websocket.close();
+                            })
+                            websocket.onerror = (evt) => {
+                                reject(`webApp server not found`)
+                            };
+                        })
+                    },
+
+                    requestData(request = []) {
+                        return new Promise((resolve, reject) => {
+                            var websocket = new WebSocket("ws://" + floGlobals.webAppURL + "/ws");
+                            websocket.onmessage = (evt => {
+                                if (evt.data == '$+') {
+                                    websocket.send(`?${JSON.stringify(request)}`);
+                                } else if (evt.data == '$-') {
+                                    reject(`webApp not available`)
+                                    websocket.close()
+                                } else {
+                                    resolve(JSON.parse(evt.data));
+                                    websocket.close();
+                                }
+                            })
+                            websocket.onerror = (evt) => {
+                                reject(`webApp server not found`)
+                            };
+                        })
+                    }
+                },
+
+                sendGeneralData: function(message, type, options = {}){
+                    return new Promise((resolve,reject) => {
+                        var data = {
+                            senderID : myFloID,
+                            receiverID: options.receiverID || floGlobals.adminID,
+                            pubKey : myPubKey,
+                            message : message,
+                            sign: floCrypto.signData(JSON.stringify(message), myPrivKey),
+                            application : options.application || floGlobals.application,
+                            type: type,
+                            comment: options.comment || ""
+                        }
+                        this.util.sendData(JSON.stringify(data), data.receiverID)
+                            .then(result => resolve(result))
+                            .catch(error => reject(error))
+                    })
+                },
+
+                requestGeneralData: function(type, vectorClock = '0'){
+                    if(typeof vectorClock !== 'string')
+                        vectorClock.toString()
+                    return new Promise((resolve, reject) => {
+                        this.util.requestData(['generalData', type, vectorClock]).then(result => {
+                                if(result[0])
+                                    resolve(result[1])
+                                else
+                                    reject(result[1])
+                            }).catch(error => reject(error))
+                    })
+                }, 
+
+                requestObjectData: function(keyPath){
+                    return new Promise((resolve, reject) => {
+                        this.util.requestData(['objectData'].concat(keyPath)).then(result => {
+                                if(result[0])
+                                    resolve(result[1])
+                                else
+                                    reject(result[1])
+                            }).catch(error => reject(error))
+                    })
+                }
+            }
+        </script>
+    </body>
+</html>
