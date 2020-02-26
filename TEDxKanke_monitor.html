@@ -552,15 +552,19 @@ ul .person-card:last-of-type, ul .task-card:last-of-type {
         }
     </script>
     <script id="onLoadStartUp">
+      
         function onLoadStartUp() {
             console.log('onLoadStartUp')
-            Promise.all([TEDxKanke_monitor.getProjectList(), TEDxKanke_monitor.getTaskList(), TEDxKanke_monitor.getInternList(), webAppClient.requestSubAdminList()]).then(results => {
-                projects = results[0];
-                tasks = TEDxKanke_monitor.taskTitles(results[1]);
-                internList = results[2];
-                floGlobals.subAdmins = results[3]
-                console.log(projects, tasks, internList, floGlobals.subAdmins)
-                renderElements()
+            webAppClient.requestSubAdminList().then(result => {
+              console.log(result)
+              floGlobals.subAdmins = result
+              loader('hide', 'main_loader')
+              showPage('main_page')
+              renderActivityUpdates()
+              TEDxKanke_monitor.getTaskList().then(result => {
+                tasks = TEDxKanke_monitor.taskTitles(result);
+                renderGroupElements()
+              }).catch(error => console.error(error))
             }).catch(error => console.error(error))
         }
     </script>
@@ -687,7 +691,7 @@ ul .person-card:last-of-type, ul .task-card:last-of-type {
             </div>
             <div id="tasks" class="container padding">
                 <header class="padding">
-                    <h3>Tasks</h3>
+                    <h3>Groups</h3>
                 </header>
                 <ul id="tasks_container"> 
                 </ul>
@@ -702,11 +706,6 @@ ul .person-card:last-of-type, ul .task-card:last-of-type {
                 <h3 id="task_title">Category</h3>
             </header>
             <ul id="assigned" class="padding">
-                <li class="person-card">
-                    <span></span>
-                    <h4>Name</h4>
-                    <h5>FLOID</h5>
-                </li>
             </ul>
             <div id="intern_loader" class="popup-container">
               <div>
@@ -934,14 +933,13 @@ ul .person-card:last-of-type, ul .task-card:last-of-type {
                                 <h4>${task}</h4>`;
                 return card;
             },
-            personCard: function(floID, name){
-            	name = name || "#Undefined"
+            personCard: function(floID){
                 let card = document.createElement('li'),
-                    inital = name.charAt(0);
+                    inital = floID.charAt(1);
                 card.classList.add('person-card', 'padding')
                 card.innerHTML = `<span>${inital}</span>
-                                <h4>${name}</h4>
-                                <h5>${floID}</h5>`;
+                                <h4>${floID}</h4>
+                                `;
                 return card;
             },
             updateCard: function(message, timestamp){
@@ -1008,7 +1006,7 @@ ul .person-card:last-of-type, ul .task-card:last-of-type {
             TEDxKanke_monitor.getAssignedInterns(task).then((assignedInterns) => {
                 if(assignedInterns)
 	                assignedInterns.forEach((intern) => {
-	                    frag.appendChild(render.personCard(intern, internList[intern]))
+	                    frag.appendChild(render.personCard(intern))
 	                })
                 container.append(frag)
                 loader('hide', 'intern_loader')
@@ -1030,24 +1028,27 @@ ul .person-card:last-of-type, ul .task-card:last-of-type {
                     loader.firstElementChild.children[0].classList.remove('loading-animation')
                 }
             }
-        function renderElements(){
-            let taskContainer = document.getElementById('tasks_container'),
-                updateContainer = document.getElementById('activity_container');
-            for(task in tasks){
+
+        function renderGroupElements(){
+          let taskContainer = document.getElementById('tasks_container')
+          for(task in tasks){
                 frag.appendChild(render.taskCard(task, tasks[task][0]))
             }
-            taskContainer.append(frag)
-            TEDxKanke_monitor.getGeneralUpdate('InternUpdates').then((updates) => {
+          taskContainer.append(frag)
+        }
+
+        function renderActivityUpdates(){
+          let updateContainer = document.getElementById('activity_container')
+          TEDxKanke_monitor.getGeneralUpdate('InternUpdates').then((updates) => {
                 updates.reverse().forEach((update) => {
                     if(floGlobals.subAdmins.includes(update.sender))
                       frag.appendChild(render.updateCard(update.message, update.vectorClock.split('_')[0]))
                 })
                 updateContainer.append(frag)
                 var autoRefresh = setInterval(liveUpdates, 60000)
-                loader('hide', 'main_loader')
-                showPage('main_page')
             })
         }
+        
         function liveUpdates(){
           let updateContainer = document.getElementById('activity_container');
           var intervalTime = Date.now() - 60000
