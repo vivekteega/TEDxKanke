@@ -562,16 +562,17 @@
       
         function onLoadStartUp() {
             console.log('onLoadStartUp')
+            loader('hide', 'main_loader')
+            showPage('main_page')
+            TEDxKanke_monitor.getTaskList().then(result => {
+              console.log('Received TaskList')
+              tasks = TEDxKanke_monitor.taskTitles(result);
+              renderGroupElements()
+            }).catch(error => console.error(error))
             webAppClient.requestSubAdminList().then(result => {
-              console.log(result)
               floGlobals.subAdmins = result
-              loader('hide', 'main_loader')
-              showPage('main_page')
+              console.log('Received subAdminList', floGlobals.subAdmins)
               renderActivityUpdates()
-              TEDxKanke_monitor.getTaskList().then(result => {
-                tasks = TEDxKanke_monitor.taskTitles(result);
-                renderGroupElements()
-              }).catch(error => console.error(error))
             }).catch(error => console.error(error))
         }
     </script>
